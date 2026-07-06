@@ -9,10 +9,12 @@ from dotenv import load_dotenv
 from src.prompt import *
 import os
 
-
+print("App Started.....")
 app = Flask(__name__)
+print("1. Flask app created")
 
 load_dotenv()
+print("2. Environment loaded")
 
 PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
@@ -21,6 +23,7 @@ os.environ['PINECONE_API_KEY'] = PINECONE_API_KEY
 os.environ['GROQ_API_KEY'] = GROQ_API_KEY
 
 embeddings = download_embeddings()
+print("3. Embeddings loaded")
 
 index_name = "medical-chatbot"
 # embed each chunk and upsert the embeddings into your Pinecone index.
@@ -28,10 +31,13 @@ docsearch = PineconeVectorStore.from_existing_index(
     index_name=index_name,
     embedding=embeddings
 )
+print("4. Pinecone connected")
 
 retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k':3})
+print("5. Retriever created")
 
 chatmodel = ChatGroq(model_name = "openai/gpt-oss-20b", api_key=GROQ_API_KEY)
+print("6. LLM initialized")
 
 prompt = ChatPromptTemplate.from_messages(
     [
@@ -41,7 +47,10 @@ prompt = ChatPromptTemplate.from_messages(
 )
 
 question_answering_chain =  create_stuff_documents_chain(chatmodel, prompt)
+print("7. QA chain ready")
+
 rag_chain = create_retrieval_chain(retriever, question_answering_chain)
+print("8. RAG chain ready")
 
 @app.route("/")
 def index():

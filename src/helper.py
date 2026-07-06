@@ -5,6 +5,7 @@ from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 
 
+
 # Extract data from the pdf files
 def load_pdf_files(data_dir):
     loader = DirectoryLoader(
