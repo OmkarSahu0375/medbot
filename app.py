@@ -1,0 +1,63 @@
+from flask import Flask, jsonify, render_template, request
+from src.helper import download_embeddings
+from langchain_pinecone import PineconeVectorStore
+from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+from dotenv import load_dotenv
+from src.prompt import *
+import os
+
+
+app = Flask(__name__)
+
+load_dotenv()
+
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+os.environ['PINECONE_API_KEY'] = PINECONE_API_KEY
+os.environ['GROQ_API_KEY'] = GROQ_API_KEY
+
+embeddings = download_embeddings()
+
+index_name = "medical-chatbot"
+# embed each chunk and upsert the embeddings into your Pinecone index.
+docsearch = PineconeVectorStore.from_existing_index(
+    index_name=index_name,
+    embedding=embeddings
+)
+
+retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k':3})
+
+chatmodel = ChatGroq(model_name = "openai/gpt-oss-20b", api_key=GROQ_API_KEY)
+
+prompt = ChatPromptTemplate.from_messages(
+    [
+        ('system', system_prompt),
+        ('human', "{input}")
+    ]
+)
+
+question_answering_chain =  create_stuff_documents_chain(chatmodel, prompt)
+rag_chain = create_retrieval_chain(retriever, question_answering_chain)
+
+@app.route("/")
+def index():
+    return render_template('chat.html')
+print(app.url_map)
+
+@app.route("/get", methods=["GET", "POST"])
+def chat():
+    msg = request.form['msg']
+    input = msg
+    print(input)
+    response = rag_chain.invoke({'input': msg})
+    print("Response: ", response['answer'])
+    return str(response['answer'])
+
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080, debug=True)

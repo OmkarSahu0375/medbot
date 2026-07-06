@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedBot • Medical AI</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-neutral-950 text-white">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-72 bg-neutral-900 border-r border-neutral-800 flex flex-col">
+            <div class="p-6 border-b border-neutral-800">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center text-2xl">
+                        🩺
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold tracking-tighter">MedBot</h1>
+                        <p class="text-xs text-emerald-400">Medical RAG Assistant</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4">
+                <button onclick="newChat()" 
+                        class="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 transition-all py-3 px-4 rounded-2xl text-sm font-medium">
+                    <i class="fas fa-plus"></i>
+                    NEW CONVERSATION
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 py-2 text-sm text-neutral-400" id="history">
+                <!-- History items added by JS -->
+            </div>
+
+            <div class="p-4 border-t border-neutral-800 text-xs text-neutral-500">
+                Powered by Groq + Pinecone
+            </div>
+        </div>
+
+        <!-- Main Chat -->
+        <div class="flex-1 flex flex-col">
+            <div class="h-16 border-b border-neutral-800 bg-neutral-900 px-8 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="text-emerald-400">
+                        <i class="fas fa-stethoscope text-2xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="font-semibold">Medical Knowledge Assistant</h2>
+                        <p class="text-xs text-neutral-400">Retrieval-Augmented Generation</p>
+                    </div>
+                </div>
+                <button onclick="clearChat()" 
+                        class="text-neutral-400 hover:text-red-400 transition-colors flex items-center gap-2 text-sm">
+                    <i class="fas fa-trash"></i> Clear Chat
+                </button>
+            </div>
+
+            <!-- Chat Messages -->
+            <div id="chat-container" class="flex-1 overflow-y-auto p-8 space-y-8 bg-[radial-gradient(#27272a_1px,transparent_1px)] [background-size:25px_25px]">
+                <!-- Messages added dynamically -->
+            </div>
+
+            <!-- Input -->
+            <div class="p-6 border-t border-neutral-800 bg-neutral-900">
+                <div class="max-w-4xl mx-auto">
+                    <form id="chat-form" class="relative">
+                        <textarea id="user-input" 
+                                  rows="1"
+                                  class="w-full bg-neutral-800 border border-neutral-700 focus:border-emerald-500 rounded-3xl py-5 px-7 pr-28 text-lg resize-none focus:outline-none transition-all"
+                                  placeholder="Ask about symptoms, diseases, treatments..."></textarea>
+                        
+                        <button type="submit"
+                                class="absolute right-3 bottom-3 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-600 hover:to-cyan-600 w-12 h-12 rounded-2xl flex items-center justify-center transition-all active:scale-95">
+                            <i class="fas fa-paper-plane text-white"></i>
+                        </button>
+                    </form>
+                    
+                    <p class="text-center text-[10px] text-neutral-500 mt-4">
+                        This is an AI assistant. Always consult a real doctor for medical advice.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let currentChatId = Date.now().toString();
+
+    const textarea = document.getElementById('user-input');
+    const form = document.getElementById('chat-form');
+    const chatContainer = document.getElementById('chat-container');
+
+    // Auto resize textarea
+    textarea.addEventListener('input', () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
+    });
+
+    // Handle Enter key - Send message, Shift+Enter for new line
+    textarea.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();           // Prevent new line
+            sendMessage();
+        }
+    });
+
+    // Form submit fallback (for button click)
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendMessage();
+    });
+
+    async function sendMessage() {
+        const message = textarea.value.trim();
+        if (!message) return;
+
+        addMessage('user', message);
+        textarea.value = '';
+        textarea.style.height = 'auto';
+
+        const typingId = showTypingIndicator();
+
+        try {
+            const formData = new FormData();
+            formData.append('msg', message);
+
+            const response = await fetch('/get', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) throw new Error('Server error');
+
+            const answer = await response.text();
+
+            removeTypingIndicator(typingId);
+            addMessage('assistant', answer);
+
+        } catch (err) {
+            removeTypingIndicator(typingId);
+            addMessage('assistant', "Sorry, I couldn't get a response. Please try again.");
+            console.error(err);
+        }
+    }
+
+    function addMessage(role, content) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+
+        if (role === 'user') {
+            messageDiv.innerHTML = `
+                <div class="max-w-[65%]">
+                    <div class="bg-gradient-to-r from-emerald-600 to-cyan-600 px-6 py-4 rounded-3xl rounded-tr-none">
+                        ${content}
+                    </div>
+                    <div class="text-right text-xs text-neutral-500 mt-1">just now</div>
+                </div>
+            `;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="flex gap-4 max-w-[75%]">
+                    <div class="w-9 h-9 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center flex-shrink-0 mt-1 text-xl">
+                        🩺
+                    </div>
+                    <div class="bg-neutral-800 px-6 py-4 rounded-3xl rounded-tl-none prose prose-invert">
+                        ${content}
+                    </div>
+                </div>
+            `;
+        }
+
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function showTypingIndicator() {
+        const id = 'typing-' + Date.now();
+        const typingDiv = document.createElement('div');
+        typingDiv.id = id;
+        typingDiv.className = 'flex justify-start';
+        typingDiv.innerHTML = `
+            <div class="flex gap-4">
+                <div class="w-9 h-9 bg-gradient-to-br from-emerald-500 to-cyan-500 rounded-2xl flex items-center justify-center flex-shrink-0 mt-1 text-xl">
+                    🩺
+                </div>
+                <div class="bg-neutral-800 px-6 py-4 rounded-3xl rounded-tl-none flex items-center">
+                    <div class="flex gap-1">
+                        <span class="w-2 h-2 bg-neutral-400 rounded-full animate-bounce"></span>
+                        <span class="w-2 h-2 bg-neutral-400 rounded-full animate-bounce delay-150"></span>
+                        <span class="w-2 h-2 bg-neutral-400 rounded-full animate-bounce delay-300"></span>
+                    </div>
+                </div>
+            </div>
+        `;
+        chatContainer.appendChild(typingDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        return id;
+    }
+
+    function removeTypingIndicator(id) {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    }
+
+    function clearChat() {
+        if (confirm("Clear current conversation?")) {
+            chatContainer.innerHTML = '';
+            addWelcomeMessage();
+        }
+    }
+
+    function newChat() {
+        if (chatContainer.children.length > 1 && !confirm("Start a new chat?")) return;
+        currentChatId = Date.now().toString();
+        chatContainer.innerHTML = '';
+        addWelcomeMessage();
+    }
+
+    function addWelcomeMessage() {
+        const welcomeHTML = `
+            <div class="max-w-lg mx-auto text-center py-16">
+                <div class="text-7xl mb-6">🩺</div>
+                <h1 class="text-4xl font-bold mb-4 tracking-tight">Hello, I'm NeoMind</h1>
+                <p class="text-neutral-400 text-lg">
+                    Your AI medical knowledge assistant.<br>
+                    Ask me anything about health, symptoms, or treatments.
+                </p>
+                <div class="mt-8 text-xs text-neutral-500">
+                    ⚠️ This is not a substitute for professional medical advice.
+                </div>
+            </div>
+        `;
+        const div = document.createElement('div');
+        div.innerHTML = welcomeHTML;
+        chatContainer.appendChild(div);
+    }
+
+    // Initialize
+    window.onload = () => {
+        addWelcomeMessage();
+    };
+</script>
+</body>
+</html>
