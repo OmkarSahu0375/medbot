@@ -1,14 +1,43 @@
 print("App is starting...")
+
+print("Importing Flask...")
 from flask import Flask, jsonify, render_template, request
+print("✓ Flask imported")
+
+print("Importing helper...")
 from src.helper import download_embeddings
+print("✓ helper imported")
+
+print("Importing Pinecone...")
 from langchain_pinecone import PineconeVectorStore
+print("✓ Pinecone imported")
+
+print("Importing Groq...")
 from langchain_groq import ChatGroq
+print("✓ Groq imported")
+
+print("Importing prompts...")
 from langchain_core.prompts import ChatPromptTemplate
+print("✓ ChatPromptTemplate imported")
+
+print("Importing chains...")
 from langchain_classic.chains import create_retrieval_chain
+print("✓ Retrieval chain imported")
+
+print("Importing combine_documents...")
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+print("✓ Stuff documents chain imported")
+
+print("Importing dotenv...")
 from dotenv import load_dotenv
+print("✓ dotenv imported")
+
+print("Importing prompt...")
 from src.prompt import *
+print("✓ prompt imported")
+
 import os
+print("✓ os imported")
 
 print("App Started.....")
 app = Flask(__name__)
