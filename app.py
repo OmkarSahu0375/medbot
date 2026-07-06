@@ -1,3 +1,4 @@
+print("App is starting...")
 from flask import Flask, jsonify, render_template, request
 from src.helper import download_embeddings
 from langchain_pinecone import PineconeVectorStore
@@ -69,5 +70,5 @@ def chat():
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
