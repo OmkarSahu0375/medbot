@@ -9,3 +9,5 @@ langchain-community
 langchain
 langchain_huggingface       
 langchain-classic
+torch 
+langchain_text_splitters
