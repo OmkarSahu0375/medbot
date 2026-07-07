@@ -1,81 +1,103 @@
-from flask import Flask, render_template, request
-import os
-from dotenv import load_dotenv
+print("App is starting...")
 
-from langchain_pinecone import PineconeVectorStore
-from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_classic.chains import create_retrieval_chain
-from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+print("Importing Flask...")
+from flask import Flask, jsonify, render_template, request
+print("✓ Flask imported")
 
+print("Importing helper...")
 from src.helper import download_embeddings
-from src.prompt import system_prompt
+print("✓ helper imported")
+
+print("Importing Pinecone...")
+from langchain_pinecone import PineconeVectorStore
+print("✓ Pinecone imported")
+
+print("Importing Groq...")
+from langchain_groq import ChatGroq
+print("✓ Groq imported")
+
+print("Importing prompts...")
+from langchain_core.prompts import ChatPromptTemplate
+print("✓ ChatPromptTemplate imported")
+
+print("Importing chains...")
+from langchain_classic.chains import create_retrieval_chain
+print("✓ Retrieval chain imported")
+
+print("Importing combine_documents...")
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
+print("✓ Stuff documents chain imported")
+
+print("Importing dotenv...")
+from dotenv import load_dotenv
+print("✓ dotenv imported")
+
+print("Importing prompt...")
+from src.prompt import *
+print("✓ prompt imported")
+
+import os
+print("✓ os imported")
+
+print("App Started.....")
+app = Flask(__name__)
+print("1. Flask app created")
 
 load_dotenv()
+print("2. Environment loaded")
 
-app = Flask(__name__)
-rag_chain = None
+PINECONE_API_KEY = os.environ.get('PINECONE_API_KEY')
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-def initialize_rag():
-    global rag_chain
+os.environ['PINECONE_API_KEY'] = PINECONE_API_KEY
+os.environ['GROQ_API_KEY'] = GROQ_API_KEY
 
-    print("Initializing embeddings...")
+embeddings = download_embeddings()
+print("3. Embeddings loaded")
 
-    # load only when needed (NOT at startup)
-    embeddings = download_embeddings()
+index_name = "medical-chatbot"
+# embed each chunk and upsert the embeddings into your Pinecone index.
+docsearch = PineconeVectorStore.from_existing_index(
+    index_name=index_name,
+    embedding=embeddings
+)
+print("4. Pinecone connected")
 
-    print("Connecting to Pinecone...")
+retriever = docsearch.as_retriever(search_type="similarity", search_kwargs={'k':3})
+print("5. Retriever created")
 
-    docsearch = PineconeVectorStore.from_existing_index(
-        index_name="medical-chatbot",
-        embedding=embeddings
-    )
+chatmodel = ChatGroq(model_name = "openai/gpt-oss-20b", api_key=GROQ_API_KEY)
+print("6. LLM initialized")
 
-    retriever = docsearch.as_retriever(
-        search_type="similarity",
-        search_kwargs={'k': 3}
-    )
-
-    print("Loading LLM...")
-
-    chatmodel = ChatGroq(
-        model_name="openai/gpt-oss-20b",
-        api_key=os.environ.get("GROQ_API_KEY")
-    )
-
-    prompt = ChatPromptTemplate.from_messages([
+prompt = ChatPromptTemplate.from_messages(
+    [
         ('system', system_prompt),
         ('human', "{input}")
-    ])
+    ]
+)
 
-    qa_chain = create_stuff_documents_chain(chatmodel, prompt)
-    rag_chain = create_retrieval_chain(retriever, qa_chain)
+question_answering_chain =  create_stuff_documents_chain(chatmodel, prompt)
+print("7. QA chain ready")
 
-    print("RAG initialized successfully!")
-    return rag_chain
+rag_chain = create_retrieval_chain(retriever, question_answering_chain)
+print("8. RAG chain ready")
 
-# ROUTES
 @app.route("/")
 def index():
-    return render_template("chat.html")
-
+    return render_template('chat.html')
+print(app.url_map)
 
 @app.route("/get", methods=["GET", "POST"])
 def chat():
-    global rag_chain
-
-    # initialize ONLY on first request
-    if rag_chain is None:
-        rag_chain = initialize_rag()
-
-    msg = request.form["msg"]
-
-    response = rag_chain.invoke({"input": msg})
-
-    return str(response["answer"])
+    msg = request.form['msg']
+    input = msg
+    print(input)
+    response = rag_chain.invoke({'input': msg})
+    print("Response: ", response['answer'])
+    return str(response['answer'])
 
 
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 7860))
     app.run(host="0.0.0.0", port=port)
