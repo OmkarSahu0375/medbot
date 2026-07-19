@@ -70,14 +70,36 @@ rag_chain = create_retrieval_chain(
 )
 
 # Chat UI
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display previous messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.write(message["content"])
+
+# Chat input
 question = st.chat_input("Type your medical question...")
 
 if question:
+    # Store and display user message
+    st.session_state.messages.append(
+        {"role": "user", "content": question}
+    )
+
     with st.chat_message("user"):
         st.write(question)
 
+    # Generate response
     with st.spinner("Generating response..."):
         response = rag_chain.invoke({"input": question})
+        answer = response["answer"]
+
+    # Store and display assistant message
+    st.session_state.messages.append(
+        {"role": "assistant", "content": answer}
+    )
 
     with st.chat_message("assistant"):
-        st.write(response["answer"])
+        st.write(answer)
