@@ -44,8 +44,11 @@ def load_rag_chain():
     )
     
     retriever = docsearch.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 3}
+    search_type="similarity_score_threshold",
+    search_kwargs={
+        "score_threshold": 0.7,
+        "k": 3
+        }
     )
 
     # Initialize the LLM
